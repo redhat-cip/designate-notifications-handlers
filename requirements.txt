@@ -1,0 +1,4 @@
+stevedore
+kombu
+oslo.config
+pbr
