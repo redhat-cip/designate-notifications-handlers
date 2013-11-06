@@ -3,3 +3,4 @@
 *.egg
 .venv
 .tox
+nosetests.xml
