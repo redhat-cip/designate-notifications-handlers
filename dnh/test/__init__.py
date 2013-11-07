@@ -9,7 +9,7 @@ class DnhTestCase(unittest.TestCase):
     def setUp(self):
         cfg.CONF.set_override('handlers', ['nsd4'],
                               group=dnh_consumer.CFG_GRP)
-        cfg.CONF.set_override('nsd_host', 'localhost',
+        cfg.CONF.set_override('servers', ['host1:4242', 'host2'],
                               group=nsd4.CFG_GRP)
         cfg.CONF.set_override('pattern', 'slave',
                               group=nsd4.CFG_GRP)

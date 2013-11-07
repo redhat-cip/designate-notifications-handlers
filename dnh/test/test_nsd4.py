@@ -28,8 +28,12 @@ class TestNSD4(DnhTestCase):
         nsd4_handler = NSD4Handler()
         nsd4_handler._command = MagicMock()
         nsd4_handler.handle(n)
-        nsd4_handler._command.assert_called_with('addzone %s %s' %
-                                                 (domain, pattern))
+        nsd4_handler._command.assert_any_call('addzone %s %s' %
+                                              (domain, pattern),
+                                              'host1', 4242)
+        nsd4_handler._command.assert_any_call('addzone %s %s' %
+                                              (domain, pattern),
+                                              'host2', 8952)
 
     def test_delete_command(self):
         n = self.get_delete_notification()
@@ -37,4 +41,7 @@ class TestNSD4(DnhTestCase):
         nsd4_handler = NSD4Handler()
         nsd4_handler._command = MagicMock()
         nsd4_handler.handle(n)
-        nsd4_handler._command.assert_called_with('delzone %s' % domain)
+        nsd4_handler._command.assert_any_call('delzone %s' % domain,
+                                              'host1', 4242)
+        nsd4_handler._command.assert_any_call('delzone %s' % domain,
+                                              'host2', 8952)

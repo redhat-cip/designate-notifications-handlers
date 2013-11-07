@@ -29,10 +29,10 @@ cfg.CONF.register_group(
 cfg.CONF.register_opts([
     cfg.StrOpt('keyfile', default='/etc/nsd/nsd_control.key', required=True),
     cfg.StrOpt('certfile', default='/etc/nsd/nsd_control.pem', required=True),
-    cfg.StrOpt('nsd_host', required=True),
-    cfg.IntOpt('nsd_port', default=8952, required=True),
+    cfg.ListOpt('servers', required=True),
     cfg.StrOpt('pattern', required=True),
 ], group=CFG_GRP)
+DEFAULT_PORT = 8952
 
 
 class NSD4Handler(BaseHandler):
@@ -46,12 +46,23 @@ class NSD4Handler(BaseHandler):
     def __init__(self):
         self._keyfile = cfg.CONF[CFG_GRP].keyfile
         self._certfile = cfg.CONF[CFG_GRP].certfile
-        self._nsd_host = cfg.CONF[CFG_GRP].nsd_host
-        self._nsd_port = cfg.CONF[CFG_GRP].nsd_port
+        self._servers = self._parse_servers()
         self._pattern = cfg.CONF[CFG_GRP].pattern
 
-    def _command(self, command):
-        sock = socket.create_connection((self._nsd_host, self._nsd_port))
+    def _parse_servers(self):
+        servers = []
+        for server in cfg.CONF[CFG_GRP].servers:
+            try:
+                (host, port) = server.split(':')
+                port = int(port)
+            except ValueError:
+                host = server
+                port = DEFAULT_PORT
+            servers.append({'host': host, 'port': port})
+        return servers
+
+    def _command(self, command, host, port):
+        sock = socket.create_connection((host, port))
         ssl_sock = ssl.wrap_socket(sock, keyfile=self._keyfile,
                                    certfile=self._certfile)
         stream = ssl_sock.makefile()
@@ -62,25 +73,29 @@ class NSD4Handler(BaseHandler):
         ssl_sock.close()
         return result.rstrip()
 
-    def _do_and_log(self, command, expect):
+    def _do_and_log(self, command, expect, host, port):
         try:
-            result = self._command(command)
+            result = self._command(command, host, port)
             if result == expect:
                 LOG.info('`%s` on %s:%d' %
-                         (command, self._nsd_host, self._nsd_port))
+                         (command, host, port))
             else:
                 LOG.error('Failed `%s` on %s:%d. Server said: %s' %
-                          (command, self._nsd_host, self._nsd_port, result))
+                          (command, host, port, result))
         except socket.error as e:
             LOG.info('Failed `%s` on %s:%d. Error was: %s' %
-                     (command, self._nsd_host, self._nsd_port, e))
+                     (command, host, port, e))
+
+    def _on_all_servers(self, command, expect):
+        for server in self._servers:
+            self._do_and_log(command, expect, server['host'], server['port'])
 
     def dns_domain_create(self, notification):
         domain = notification['payload']['name']
         command = 'addzone %s %s' % (domain, self._pattern)
-        self._do_and_log(command, 'ok')
+        self._on_all_servers(command, 'ok')
 
     def dns_domain_delete(self, notification):
         domain = notification['payload']['name']
         command = 'delzone %s' % domain
-        self._do_and_log(command, 'ok')
+        self._on_all_servers(command, 'ok')
